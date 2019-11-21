@@ -90,6 +90,7 @@ type SegAlgoFlow struct {
 	CurrentThroughputEgress       float64 //measured
 	Path                          *SegAlgoPath
 	UpdateRequired                bool
+	IsActive                      bool
 }
 
 // SegAlgoPath -
@@ -839,10 +840,11 @@ func resetComputedNetChar(flow *SegAlgoFlow) {
 // recalculateSegmentBw -
 func recalculateSegmentBw(segment *SegAlgoSegment, flowsToEvaluate []*SegAlgoFlow, unusedBw float64) {
 	nbEvaluatedflowsLeft := len(flowsToEvaluate)
-	if segment.CurrentThroughput > segment.ConfiguredNetChar.Throughput || nbEvaluatedflowsLeft >= 1 {
 
+	if segment.CurrentThroughput > segment.ConfiguredNetChar.Throughput || nbEvaluatedflowsLeft >= 1 {
 		//category 1 Flows
 		for _, flow := range flowsToEvaluate {
+
 			if flow.CurrentThroughput+segment.IncrementalStep > segment.MaxFairShareBwPerFlow {
 				flow.PlannedThroughput = segment.MaxFairShareBwPerFlow //category 2 or 3
 			} else {
@@ -850,6 +852,7 @@ func recalculateSegmentBw(segment *SegAlgoSegment, flowsToEvaluate []*SegAlgoFlo
 					flow.PlannedThroughput = segment.MaxBwPerInactiveFlow
 					flow.PlannedUpperBound = segment.InactivityIncrementalStep
 					flow.PlannedLowerBound = 0
+					flow.IsActive = false
 				} else {
 					flow.PlannedThroughput = flow.CurrentThroughput + segment.IncrementalStep
 					if flow.PlannedThroughput > flow.ConfiguredNetChar.Throughput {
@@ -962,10 +965,18 @@ func needToReevaluate(segment *SegAlgoSegment) (unusedBw float64, list []*SegAlg
 	for _, flow := range segment.Flows {
 		if flow.CurrentThroughput < flow.AllocatedThroughputLowerBound || flow.CurrentThroughput > flow.AllocatedThroughputUpperBound || flow.CurrentThroughput >= segment.MaxFairShareBwPerFlow || flow.UpdateRequired {
 			list = append(list, flow)
+			flow.UpdateRequired = false
 		} else {
 			//no need to reevalute algo one, so removing its allocated bw from the available one
 			if flow.CurrentThroughput >= segment.MinActivityThreshold {
-				unusedBw -= flow.AllocatedThroughput
+				if flow.IsActive {
+					unusedBw -= flow.AllocatedThroughput
+					if unusedBw < 0 {
+						log.Error("Available bandwidth shouldn't be less than 0")
+					}
+				} else {
+					log.Error("Inactive flow with higher throughput than minActivityThreshold")
+				}
 			}
 		}
 	}
@@ -977,7 +988,16 @@ func updateMaxFairShareBwPerFlow(segment *SegAlgoSegment) {
 	nbActiveConnections := 0
 	for _, flow := range segment.Flows {
 		if flow.CurrentThroughput >= segment.MinActivityThreshold {
+			if flow.IsActive == false {
+				flow.IsActive = true
+				flow.UpdateRequired = true
+			}
 			nbActiveConnections++
+		} else {
+			if flow.IsActive {
+				flow.IsActive = false
+				flow.UpdateRequired = true
+			}
 		}
 	}
 	if nbActiveConnections >= 1 {
@@ -1091,8 +1111,10 @@ func printFlow(flow *SegAlgoFlow) string {
 	s8l := fmt.Sprintf("%f", flow.AppliedNetChar.Latency)
 	s8j := fmt.Sprintf("%f", flow.AppliedNetChar.Jitter)
 	s8p := fmt.Sprintf("%f", flow.AppliedNetChar.PacketLoss)
+	s9 := fmt.Sprintf("%t", flow.UpdateRequired)
+	s10 := fmt.Sprintf("%t", flow.IsActive)
 
-	str := s1 + ": " + "Current: " + s6 + " - Configured: [" + s2t + "-" + s2l + "-" + s2j + "-" + s2p + "] Allocated: " + s3a + "[" + s4a + "-" + s5a + "]" + " - MaxPlanned: " + s3m + "[" + s4m + "-" + s5m + "]" + " - Planned: " + s3p + "[" + s4p + "-" + s5p + "] Computed Net Char: [" + s7l + "-" + s7j + "-" + s7p + "] Applied Net Char: [" + s8l + "-" + s8j + "-" + s8p + "]"
+	str := s1 + ": " + "Current: " + s6 + " - Configured: [" + s2t + "-" + s2l + "-" + s2j + "-" + s2p + "] Allocated: " + s3a + "[" + s4a + "-" + s5a + "]" + " - MaxPlanned: " + s3m + "[" + s4m + "-" + s5m + "]" + " - Planned: " + s3p + "[" + s4p + "-" + s5p + "] Computed Net Char: [" + s7l + "-" + s7j + "-" + s7p + "] Applied Net Char: [" + s8l + "-" + s8j + "-" + s8p + "] " + s9 + " " + s10
 	str += printPath(flow.Path)
 	return str
 }
