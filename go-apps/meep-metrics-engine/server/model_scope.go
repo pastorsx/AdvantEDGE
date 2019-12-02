@@ -24,18 +24,15 @@
 
 package server
 
-import (
-	"net/http"
-)
+// Query scope (time / number of points)
+type Scope struct {
 
-func MetricsGet(w http.ResponseWriter, r *http.Request) {
-	metricsGet(w, r)
-}
+	// Maximum number of points in the response
+	Limit int32 `json:"limit,omitempty"`
 
-func GetEventMetrics(w http.ResponseWriter, r *http.Request) {
-	meGetEventMetrics(w, r)
-}
+	// Starting timestamp of time range
+	StarTime string `json:"starTime,omitempty"`
 
-func GetNetworkMetrics(w http.ResponseWriter, r *http.Request) {
-	meGetNetworkMetrics(w, r)
+	// Ending timestamp of time range
+	StopTime string `json:"stopTime,omitempty"`
 }

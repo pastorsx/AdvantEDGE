@@ -19,6 +19,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -194,4 +195,66 @@ func convertToLogResponse(esLogResponse *ElasticFormatedLogResponse) *LogRespons
 	default:
 	}
 	return &resp
+}
+
+func meGetEventMetrics(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+
+	log.Debug("meGetEventMetrics")
+
+	// Retrieve scenario from request body
+	if r.Body == nil {
+		err := errors.New("Request body is missing")
+		log.Error(err.Error())
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+params := new(NetworkQueryParams)
+log.Info("SIMON1")
+        decoder := json.NewDecoder(r.Body)
+        err := decoder.Decode(&params)
+log.Info("SIMON2")
+        if err != nil {
+                log.Error(err.Error())
+                http.Error(w, err.Error(), http.StatusInternalServerError)
+                return
+        }
+
+/*
+	jsonParams, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		log.Error(err.Error())
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Unmarshal scenario
+	params := new(NetworkQueryParams)
+	err = json.Unmarshal(jsonParams, params)
+	if err != nil {
+		log.Error(err.Error())
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+*/
+	log.Info("SIMON ", params)
+	/*
+	   if docs > 0 {
+	           jsonResponse, err := json.Marshal(logResponseList)
+
+	           if err != nil {
+	                   log.Error(err.Error())
+	                   http.Error(w, err.Error(), http.StatusInternalServerError)
+	                   return
+	           }
+	           fmt.Fprintf(w, string(jsonResponse))
+	   }
+	*/
+	w.WriteHeader(http.StatusOK)
+}
+
+func meGetNetworkMetrics(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	w.WriteHeader(http.StatusOK)
 }
